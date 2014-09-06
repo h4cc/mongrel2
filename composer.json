@@ -1,0 +1,29 @@
+{
+    "name": "h4cc/mongrel2",
+    "description": "A library for handling Mongrel2 messages via ZeroMQ",
+    "license": "MIT",
+    "keywords": [
+        "mongrel2", "library", "zeromq", "message", "request", "response","http"
+    ],
+    "authors": [
+        {
+            "name": "Julius Beckmann",
+            "email": "github@h4cc.de"
+        }
+    ],
+    "require": {
+        "php": ">=5.4.0",
+        "phuedx/tnetstring": "~1.0",
+        "guzzle/parser": "~3.0"
+    },
+    "require-dev": {
+    },
+    "autoload": {
+        "psr-4": {
+            "h4cc\\Mongrel2\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": { "dev-master": "1.0-dev" }
+    }
+}
