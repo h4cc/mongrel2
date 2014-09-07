@@ -36,7 +36,7 @@ class MessageParser implements MessageParserInterface
         $method = $headers['METHOD'];
 
         // Parse query string.
-        parse_str(($headers['QUERY']) ? $headers['QUERY'] : '', $query);
+        parse_str((isset($headers['QUERY'])) ? $headers['QUERY'] : '', $query);
 
         $server = $this->createServerValues($headers);
 
