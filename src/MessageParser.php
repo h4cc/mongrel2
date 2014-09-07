@@ -1,6 +1,13 @@
 <?php
 
-
+/*
+ * This file is part of the h4cc/mongrel2 package.
+ *
+ * (c) Julius Beckmann <github@h4cc.de>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace h4cc\Mongrel2;
 
@@ -26,25 +33,25 @@ class MessageParser implements MessageParserInterface
         list($headers, $body) = $this->netstringDecoder->decode($remaining);
         $headers = json_decode($headers, true);
 
+        $method = $headers['METHOD'];
+
+        // Parse query string.
+        parse_str(($headers['QUERY']) ? $headers['QUERY'] : '', $query);
+
         $server = $this->createServerValues($headers);
-
-        $method = strtoupper($headers['METHOD']);
-
-        // query string
-        parse_str($headers['QUERY'], $query);
 
         // Cookies
         $cookies = array();
-        if(isset($headers['cookie'])) {
+        if (isset($headers['cookie'])) {
             $cookiesData = $this->cookieParser->parseCookie($headers['cookie']);
-            if($cookiesData) {
+            if ($cookiesData) {
                 $cookies = $cookiesData['cookies'];
             }
         }
 
         // TODO Handle POST Values completely
         $post = array();
-        if('POST' == $headers['METHOD']) {
+        if ('POST' == $headers['METHOD']) {
             // This does not yet work for file uploads :(
             parse_str($body, $post);
         }
@@ -52,7 +59,10 @@ class MessageParser implements MessageParserInterface
         // TODO Handle FILES Values as far as possible.
         $files = array();
 
-        return new Request($uuid, $listener, $method, $path, $body, $query, $post, $files, $cookies, $headers, $server);
+        return new Request(
+            $uuid, $listener, $method, $path, $body, $query,
+            $post, $files, $cookies, $headers, $server
+        );
     }
 
     public function transformResponseToMessage(Response $response)
@@ -63,7 +73,7 @@ class MessageParser implements MessageParserInterface
         $headers = $response->getHeaders();
 
         // Ensure content-length is set, otherwise Mongrel2 will ignore our request.
-        if(!isset($headers['content-length'][0])) {
+        if (!isset($headers['content-length'][0])) {
             $headers['content-length'][] = strlen($content);
         }
 
@@ -71,7 +81,7 @@ class MessageParser implements MessageParserInterface
         foreach ($headers as $name => $values) {
             $name = implode('-', array_map('ucfirst', explode('-', $name)));
             foreach ($values as $value) {
-                $headersString .= sprintf("%s %s\r\n", $name.':', $value);
+                $headersString .= sprintf("%s %s\r\n", $name . ':', $value);
             }
         }
 
@@ -96,11 +106,12 @@ class MessageParser implements MessageParserInterface
         foreach ($headers as $key => $value) {
             // Need to remove underscores, because they are not "uppercase".
             if (ctype_upper(str_replace('_', '', $key))) {
-                // These headers are given by mongrel2 only, no standard in sight here.
-                $server['MONGREL2_'.$key] = $value;
-            }else{
+                // These headers are given by mongrel2 only, no standard in sight here (?).
+                $server['MONGREL2_' . $key] = $value;
+            } else {
+                // Creating PHP SAPI like headers.
                 $key = strtoupper(str_replace('-', '_', $key));
-                $server['HTTP_'.$key] = $value;
+                $server['HTTP_' . $key] = $value;
             }
         }
 
@@ -116,45 +127,12 @@ class MessageParser implements MessageParserInterface
         $server['REQUEST_TIME_FLOAT'] = microtime(true);
         $server['REQUEST_TIME'] = time();
 
+        // Some values are not given by Mongrel2, which would be given by Apache2 for example:
+        // 'DOCUMENT_ROOT' => '/var/www',
+        // 'REMOTE_ADDR' => '127.0.0.1',
+        // 'REMOTE_PORT' => '45433',
+        // 'SERVER_SOFTWARE' => 'PHP 5.5.9-1ubuntu4.3 Development Server',
+
         return $server;
-
-        /*
-        $serverProtocol = (isset($headers['VERSION'])) ? $headers['VERSION'] : 'HTTP/1.0';
-        list($serverName, $serverPort) = explode(':', $headers['host']);
-        $requestUri = $headers['URI'];
-        $requestMethod = $headers['METHOD'];
-        $scriptName = $phpSelf = $headers['PATH'];
-        $httpHost = $headers['host'];
-        $httpUserAgent = ($headers['user-agent']) ? $headers['user-agent'] : null;
-        $httpAccept = ($headers['accept']) ? $headers['accept'] : null;
-        $httpAcceptLanguage = ($headers['accept-language']) ? $headers['accept-language'] : null;
-        $httpAcceptEncoding = ($headers['accept-encoding']) ? $headers['accept-encoding'] : null;
-        $httpConnection = ($headers['connection']) ? $headers['connection'] : null;
-
-        // Predefine common $_SERVER values if possible, taking a php internal server as template.
-        return array (
-            //'DOCUMENT_ROOT' => '/var/www',
-            //'REMOTE_ADDR' => '127.0.0.1', // Will be given by mongrel2
-            //'REMOTE_PORT' => '45433', // not given by mongrel2
-            //'SERVER_SOFTWARE' => 'PHP 5.5.9-1ubuntu4.3 Development Server',
-            'SERVER_PROTOCOL' => $serverProtocol,
-            'SERVER_NAME' => $serverName,
-            'SERVER_PORT' => $serverPort,
-            'REQUEST_URI' => $requestUri,
-            'REQUEST_METHOD' => $requestMethod,
-            'SCRIPT_NAME' => $scriptName,
-            //'SCRIPT_FILENAME' => '/var/www/index.php',
-            'PHP_SELF' => $phpSelf,
-            'HTTP_HOST' => $httpHost,
-            'HTTP_USER_AGENT' => $httpUserAgent,
-            'HTTP_ACCEPT' => $httpAccept,
-            'HTTP_ACCEPT_LANGUAGE' => $httpAcceptLanguage,
-            'HTTP_ACCEPT_ENCODING' => $httpAcceptEncoding,
-            'HTTP_CONNECTION' => $httpConnection,
-            //'HTTP_CACHE_CONTROL' => 'max-age=0', // Somehow this header does not seem to be provided by mongrel2 (?)
-            'REQUEST_TIME_FLOAT' => microtime(true),
-            'REQUEST_TIME' => time(),
-        );
-        */
     }
 }
