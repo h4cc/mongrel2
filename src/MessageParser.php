@@ -12,6 +12,7 @@
 namespace h4cc\Mongrel2;
 
 use Guzzle\Parser\Cookie\CookieParser;
+use h4cc\Multipart\ParserSelector;
 
 class MessageParser implements MessageParserInterface
 {
@@ -24,6 +25,7 @@ class MessageParser implements MessageParserInterface
         $this->netstringDecoder = new \TNetstring_Decoder();
         $this->netstringEncoder = new \TNetstring_Encoder();
         $this->cookieParser = new CookieParser();
+        $this->multipartParserSelector = new ParserSelector();
     }
 
     public function transformMessageToRequest($message)
@@ -51,15 +53,14 @@ class MessageParser implements MessageParserInterface
 
         // TODO Handle POST Values completely
         $post = array();
-        if ('POST' == $method) {
-            // This does not yet work for file uploads :(
+        if ('application/x-www-form-urlencoded' == $headers['content-type']) {
             parse_str($body, $post);
         }
 
         // TODO Handle FILES Values as far as possible.
         // This needs either a library for multipart/* parsing, or away to handle
         // async file uploads by mongrel2: http://mongrel2.org/manual/book-finalch6.html#x8-810005.5
-        $files = array();
+        $files = $this->createFilesValues($headers, $body);
 
         return new Request(
             $uuid, $listener, $method, $path, $body, $query,
@@ -115,6 +116,18 @@ class MessageParser implements MessageParserInterface
                 $key = strtoupper(str_replace('-', '_', $key));
                 $server['HTTP_' . $key] = $value;
             }
+            // Special handling for 'Content-*' headers.
+            if (0 === stripos($value, 'content-')) {
+                $key = strtoupper(str_replace('-', '_', $key));
+                $server[$key] = $value;
+            }
+        }
+
+        // Set a default content-tyoe for these methods.
+        if (in_array($headers['METHOD'], array('POST', 'PUT', 'DELETE'))) {
+            if (!isset($server['CONTENT_TYPE'])) {
+                $server['CONTENT_TYPE'] = 'application/x-www-form-urlencoded';
+            }
         }
 
         // Adding some PHP SAPI values
@@ -136,5 +149,59 @@ class MessageParser implements MessageParserInterface
         // 'SERVER_SOFTWARE' => 'PHP 5.5.9-1ubuntu4.3 Development Server',
 
         return $server;
+    }
+
+    private function createFilesValues($headers, $body)
+    {
+        if (0 !== stripos($headers['content-type'], 'multipart/')) {
+            // No fileuploads without mulitpart.
+            return array();
+        }
+
+        $parser = $this->multipartParserSelector->getParserForContentType($headers['content-type']);
+        if (!$parser) {
+            return array();
+        }
+
+        $multipartData = $parser->parse($body);
+
+        return $this->transformMultipartDataToFilesStructure($multipartData);
+    }
+
+    protected function transformMultipartDataToFilesStructure(array $multipartData)
+    {
+        $files = [];
+
+        foreach ($multipartData as $data) {
+            if (!isset($data['headers']['content-disposition'][0])) {
+                continue;
+            }
+            $contentType = (!isset($data['headers']['content-type'][0]))
+                ? $data['headers']['content-type'][0]
+                : 'text/plain';
+
+            $infoParts = explode(';', $data['headers']['content-disposition'][0]);
+            $infos = [];
+            foreach($infoParts as $infoString) {
+                if(preg_match('@([\S\s]+)="([\S\s]+)"@', $infoString, $matches)) {
+                    $infos[trim($matches[1])] = $matches[2];
+                }
+            }
+
+            // Need to write to a local file, so PHP can handle it.
+            $tempFile = tempnam(sys_get_temp_dir(), 'mongrel2');
+            file_put_contents($tempFile, $data['body']);
+
+            // Create PHPs $_FILES structure.
+            $files[$infos['name']] = [
+                'name' => $infos['filename'],
+                'type' => $contentType,
+                'tmp_name' => $tempFile,
+                'error' => 0,
+                'size' => strlen($data['body']),
+            ];
+        }
+
+        return $files;
     }
 }

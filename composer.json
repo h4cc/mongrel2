@@ -14,7 +14,8 @@
     "require": {
         "php": ">=5.4.0",
         "phuedx/tnetstring": "~1.0",
-        "guzzle/parser": "~3.0"
+        "guzzle/parser": "~3.0",
+        "h4cc/multipart": "dev-master"
     },
     "require-dev": {
     },
