@@ -51,12 +51,14 @@ class MessageParser implements MessageParserInterface
 
         // TODO Handle POST Values completely
         $post = array();
-        if ('POST' == $headers['METHOD']) {
+        if ('POST' == $method) {
             // This does not yet work for file uploads :(
             parse_str($body, $post);
         }
 
         // TODO Handle FILES Values as far as possible.
+        // This needs either a library for multipart/* parsing, or away to handle
+        // async file uploads by mongrel2: http://mongrel2.org/manual/book-finalch6.html#x8-810005.5
         $files = array();
 
         return new Request(

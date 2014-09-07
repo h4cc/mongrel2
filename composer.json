@@ -1,6 +1,6 @@
 {
     "name": "h4cc/mongrel2",
-    "description": "A library for handling Mongrel2 messages via ZeroMQ",
+    "description": "A library for handling Mongrel2 messages via ZeroMQ.",
     "license": "MIT",
     "keywords": [
         "mongrel2", "library", "zeromq", "message", "request", "response","http"
